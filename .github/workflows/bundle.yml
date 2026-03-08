@@ -1,0 +1,34 @@
+name: Bundle to MHTML
+
+on:
+  push:
+    branches: [ master ] # 或者你使用的分支名
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Inliner
+        run: npm install -g inliner
+
+      - name: Bundle Project
+        run: |
+          # 使用 inliner 将所有资源整合到 index.html
+          # -m 选项表示保留媒体文件（音频/图片）
+          inliner index.html > bundled.mhtml
+
+      - name: Upload MHTML Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-mhtml
+          path: bundled.mhtml
