@@ -1,8 +1,8 @@
-name: Build and Release MHTML (Master Branch)
+name: Build and Release MHTML (Auto Branch)
 
 on:
   push:
-    branches: [ master ] # 明确指定为 master 分支
+    # 不指定具体分支，默认匹配所有分支的推送
   workflow_dispatch:
 
 jobs:
@@ -15,34 +15,42 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install Inliner
-        run: npm install -g inliner
+      - name: Install Monolith
+        run: |
+          # 安装 Rust 编写的更强大的单文件打包工具
+          curl https://raw.githubusercontent.com/Y2Z/monolith/master/install.sh | sh
 
       - name: Bundle Project
         run: |
-          # 执行内联打包
-          # inliner 会尝试抓取 index.html 中引用的所有 css/js/images/sounds
-          inliner index.html > Persian-Project-Offline.mhtml
+          # 获取当前分支名称用于日志
+          echo "Current branch: ${GITHUB_REF_NAME}"
+          
+          # 执行打包
+          # -j 允许内联 JavaScript
+          ./monolith index.html -o Persian-Project-Offline.mhtml
+          
+          # 检查文件大小，防止 0 字节错误
+          if [ ! -s Persian-Project-Offline.mhtml ]; then
+            echo "错误: 生成的 mhtml 文件为空，请检查 index.html 路径或资源引用。"
+            exit 1
+          fi
 
       - name: Generate Release Tag
         id: tag
-        run: echo "release_tag=Master-Build-$(date +'%Y.%m.%d-%H%M')" >> $GITHUB_OUTPUT
+        run: |
+          # 标签名包含分支信息和时间戳
+          echo "release_tag=${GITHUB_REF_NAME}-Build-$(date +'%Y.%m.%d-%H%M')" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.release_tag }}
-          name: Master Branch Auto-Release ${{ steps.tag.outputs.release_tag }}
+          name: Build from ${{ github.ref_name }}
           body: |
-            ### 📦 项目单文件版本 (MHTML)
-            这是从 `master` 分支自动构建的单文件版。
-            - **包含资源**：HTML, CSS, JS, Sprites, Sounds.
-            - **使用方法**：下载后直接用 Chrome 或 Edge 浏览器打开即可。
+            ### 📦 分支自动构建详情
+            - **来源分支**: `${{ github.ref_name }}`
+            - **构建时间**: $(date)
+            - **资源说明**: 已内联所有 CSS, JS, Sprites 和 Sounds。
           files: Persian-Project-Offline.mhtml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
